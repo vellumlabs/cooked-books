@@ -173,18 +173,17 @@ export function progressiveSolve(n, cells, K, revealedInit, opts = {}) {
   while (known.size < N && guard++ < N + 5) {
     let { D, a, cons } = determinable();
     if (D.length === 0) {
-      if (extraReveals.length >= maxReveals) return { ok: false, steps, reveals: extraReveals, stuckAt: known.size };
+      if (extraReveals.length >= maxReveals) return { ok: false, steps, reveals: extraReveals, stuckAt: known.size, known: [...known] };
       // reveal the unknown cell that unlocks the most next
       let best = -1, bestN = -1;
       for (let u = 0; u < N; u++) if (!known.has(u)) { known.add(u); const d2 = determinable().D.length; known.delete(u); if (d2 > bestN) { bestN = d2; best = u; } }
       extraReveals.push(best); known.add(best);
       continue;
     }
-    const hard = !D.some((u) => isLevel1(u, a, cons));
-    steps.push({ determined: D, hard });
+    steps.push({ determined: D, easy: D.filter((u) => isLevel1(u, a, cons)).length }); steps[steps.length - 1].hard = steps[steps.length - 1].easy === 0;
     for (const u of D) known.add(u);
   }
-  return { ok: known.size === N, steps, reveals: extraReveals };
+  return { ok: known.size === N, steps, reveals: extraReveals, known: [...known] };
 }
 
 // ---------- generator ----------
@@ -194,7 +193,9 @@ export function generate(seedStr, n, target = {}) {
   const N = n * n;
   const corners = [0, n - 1, N - n, N - 1];
   const maxReveals = target.maxReveals ?? (n <= 4 ? 1 : n === 5 ? 2 : 3);
-  const hardMin = target.hardMin ?? 0, hardMax = target.hardMax ?? 99;
+  // difficulty score = 3 × hard steps (no single-note move available) + narrow steps (at most one such move)
+  const scoreMin = target.scoreMin ?? 0, scoreMax = target.scoreMax ?? 99;
+  const dist = (x) => (x < scoreMin ? scoreMin - x : x > scoreMax ? x - scoreMax : 0);
   let fallback = null;
   for (let attempt = 0; attempt < (target.attempts ?? 300); attempt++) {
     const rng = mulberry32(hashSeed(`${seedStr}#${attempt}`));
@@ -211,21 +212,40 @@ export function generate(seedStr, n, target = {}) {
       const cands = candidateClues(n, i, geo, corners).map(([t, p]) => makeClue(n, i, t, p, geo)).filter((cl) => cl.eval(full) === !forged[i]);
       if (!cands.length) { bad = true; break; }
       // weighted pick by type
-      const w = cands.map((cl) => TYPE_WEIGHT[cl.type] || 1); const tot = w.reduce((x, y) => x + y, 0);
+      const W = target.weights || TYPE_WEIGHT; const w = cands.map((cl) => W[cl.type] ?? 1); const tot = w.reduce((x, y) => x + y, 0);
       let r = rng() * tot, chosen = cands[0];
       for (let k = 0; k < cands.length; k++) { r -= w[k]; if (r <= 0) { chosen = cands[k]; break; } }
-      cells.push({ amount: amounts[i], forged: forged[i], clue: chosen });
+      cells.push({ amount: amounts[i], forged: forged[i], clue: chosen, cands });
     }
     if (bad) continue;
     // starting reveal: one genuine cell, prefer informative (many refs)
     const genuine = [...Array(N).keys()].filter((j) => !forged[j]);
     const start = pick(rng, genuine);
-    const res = progressiveSolve(n, cells, K, [start], { maxReveals });
+    let res = progressiveSolve(n, cells, K, [start], { maxReveals });
+    // repair: when the deduction chain stalls, swap the note of one already-open entry for another true note
+    // that makes some hidden entry deducible, then re-verify from the start. Raises the solvable rate on 6x6
+    // from ~1% of random boards, so the difficulty target has a real pool to choose from.
+    for (let fix = 0; !res.ok && fix < (target.repairs ?? 8); fix++) {
+      const known = res.known; let done = false, tries = 0;
+      for (const j of shuffle(rng, known)) {
+        for (const alt of shuffle(rng, cells[j].cands)) {
+          if (alt === cells[j].clue || ++tries > 80) continue;
+          const old = cells[j].clue; cells[j].clue = alt;
+          if (progressiveSolve(n, cells, K, known, { maxReveals: 0 }).steps.length) { done = true; break; }
+          cells[j].clue = old;
+        }
+        if (done || tries > 80) break;
+      }
+      if (!done) break;
+      res = progressiveSolve(n, cells, K, [start], { maxReveals });
+    }
     if (!res.ok) continue;
     const hard = res.steps.filter((s) => s.hard).length;
-    const puzzle = { n, K, cells: cells.map((c) => ({ amount: c.amount, forged: c.forged, clue: { type: c.clue.type, params: c.clue.params, refs: c.clue.refs, text: c.clue.text } })), revealed: [start, ...res.reveals], steps: res.steps.map((s) => s.determined), hardSteps: hard, attempt };
-    if (hard >= hardMin && hard <= hardMax) return puzzle;
-    if (!fallback || Math.abs(hard - hardMin) < Math.abs(fallback.hardSteps - hardMin)) fallback = puzzle;
+    const score = 3 * hard + res.steps.filter((s) => s.easy <= 1).length;
+    if (target.onCandidate) target.onCandidate(res);
+    const puzzle = { n, K, cells: cells.map((c) => ({ amount: c.amount, forged: c.forged, clue: { type: c.clue.type, params: c.clue.params, refs: c.clue.refs, text: c.clue.text } })), revealed: [start, ...res.reveals], steps: res.steps.map((s) => s.determined), hardSteps: hard, score, attempt };
+    if (!dist(score)) return puzzle;
+    if (!fallback || dist(score) < dist(fallback.score)) fallback = puzzle;
   }
   return fallback;
 }
@@ -243,12 +263,13 @@ export function dayInfo(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
   const dow = d.getUTCDay(); // 0 Sun .. 6 Sat
   const size = [6, 4, 4, 5, 5, 5, 6][dow];
-  const hard = [[3, 9], [0, 0], [0, 1], [0, 1], [1, 2], [1, 3], [2, 4]][dow];
+  // score ranges measured 2026-10-05 (p10/p50/p90 ≈ 2/4/9 for every size): Mon easiest → Sun hardest
+  const score = [[8, 99], [0, 2], [1, 3], [2, 4], [3, 6], [4, 8], [5, 9]][dow];
   const num = Math.round((d - new Date(EPOCH + 'T00:00:00Z')) / 86400000) + 1;
-  return { size, hardMin: hard[0], hardMax: hard[1], number: num, dow };
+  return { size, scoreMin: score[0], scoreMax: score[1], number: num, dow };
 }
 export function daily(dateStr) {
   const info = dayInfo(dateStr);
-  const p = generate(`cooked-books:${dateStr}`, info.size, { hardMin: info.hardMin, hardMax: info.hardMax, attempts: 400 });
+  const p = generate(`cooked-books:${dateStr}`, info.size, { scoreMin: info.scoreMin, scoreMax: info.scoreMax, attempts: 400 });
   return { ...p, date: dateStr, number: info.number };
 }

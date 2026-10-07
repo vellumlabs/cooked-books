@@ -1,10 +1,11 @@
 // Cooked Books — UI. Loads today's precomputed puzzle (data/YYYY-MM-DD.json) or generates it on-device.
-import { hydrate, daily, cellName } from './engine/engine.js';
+import { hydrate, daily, cellName, EPOCH } from './engine/engine.js';
 
 const $ = (s) => document.querySelector(s);
 const COLS = 'ABCDEFGH';
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const addDays = (key, n) => { const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const keyOf = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const fmtDate = (key) => new Date(key + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
 // ---------- storage ----------
@@ -15,7 +16,10 @@ let store = load();
 
 // ---------- state ----------
 const params = new URLSearchParams(location.search);
-const dateKey = params.get('d') && /^\d{4}-\d{2}-\d{2}$/.test(params.get('d')) && params.get('d') <= todayKey() ? params.get('d') : todayKey();
+const pd = params.get('d');
+const dateKey = pd && /^\d{4}-\d{2}-\d{2}$/.test(pd) && pd >= EPOCH && pd <= todayKey() ? pd : todayKey();
+const isArchive = dateKey !== todayKey();
+const dayHref = (key) => (key === todayKey() ? location.pathname : `?d=${key}`);
 let P = null; // hydrated puzzle
 let G = null; // game record for this date
 let selected = -1;
@@ -43,6 +47,7 @@ function render() {
   document.documentElement.style.setProperty('--n', n);
   $('#puzzle-no').textContent = `#${P.number}`;
   $('#puzzle-date').textContent = fmtDate(dateKey);
+  $('#archive-tag').classList.toggle('hidden', !isArchive);
   $('#k-total').textContent = P.K;
   let found = 0; for (const i in G.judged) if (P.cells[i].forged) found++;
   $('#k-found').textContent = found;
@@ -148,7 +153,7 @@ function emojiGrid() {
 function elapsed() { const ms = (G.finishedAt || Date.now()) - G.startedAt; const s = Math.max(1, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 function shareText() {
   const url = location.origin + location.pathname;
-  return `Cooked Books #${P.number} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`} · ${elapsed()}\n${emojiGrid()}\n${url}`;
+  return `Cooked Books #${P.number}${isArchive ? ' (archive)' : ''} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`} · ${elapsed()}\n${emojiGrid()}\n${url}`;
 }
 function finish() {
   if (!G.finishedAt) { G.finishedAt = Date.now(); save(store); }
@@ -156,14 +161,19 @@ function finish() {
   $('#done-title').textContent = G.mistakes === 0 ? 'Clean audit.' : `Audit complete — ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}.`;
   $('#share-grid').textContent = emojiGrid();
   $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. Streak: ${streak().current}.`;
-  $('#link-archive').href = `?d=${addDays(dateKey, -1)}`;
+  $('#done-next').classList.toggle('hidden', isArchive);
+  $('#done-today').classList.toggle('hidden', !isArchive);
+  const prev = dateKey > EPOCH ? addDays(dateKey, -1) : null;
+  $('#link-archive').classList.toggle('hidden', !prev);
+  if (prev) $('#link-archive').href = dayHref(prev);
   $('#pc-judge').classList.add('hidden');
   if (!finish.scrolled) { finish.scrolled = true; $('#done').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
 }
 function streak() {
   const keys = Object.keys(store.games).filter((k) => store.games[k].finishedAt).sort();
+  const onDay = keys.filter((k) => keyOf(store.games[k].finishedAt) === k); // archive play doesn't count toward streaks
   let cur = 0, best = 0, prev = null;
-  for (const k of keys) { if (prev && addDays(prev, 1) === k) cur++; else cur = 1; best = Math.max(best, cur); prev = k; }
+  for (const k of onDay) { if (prev && addDays(prev, 1) === k) cur++; else cur = 1; best = Math.max(best, cur); prev = k; }
   if (prev && prev !== todayKey() && prev !== addDays(todayKey(), -1)) cur = 0;
   return { current: cur, best, played: keys.length, perfect: keys.filter((k) => store.games[k].mistakes === 0).length };
 }
@@ -194,9 +204,18 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'g') judge(false);
   else if (k === 'f') judge(true);
   else if (k === 'escape') select(-1);
+  else if (k === '[' && !$('#nav-prev').hidden) location.href = $('#nav-prev').href;
+  else if (k === ']' && !$('#nav-next').hidden) location.href = $('#nav-next').href;
 });
 
+function renderNav() {
+  const prev = $('#nav-prev'), next = $('#nav-next');
+  prev.hidden = dateKey <= EPOCH; if (!prev.hidden) prev.href = dayHref(addDays(dateKey, -1));
+  next.hidden = !isArchive; if (!next.hidden) next.href = dayHref(addDays(dateKey, 1));
+}
+
 (async () => {
+  renderNav();
   P = await loadPuzzle(dateKey);
   initGame();
   render();

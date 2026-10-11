@@ -60,26 +60,28 @@ kbd { font-family: ui-monospace, Menlo, monospace; font-size: .8em; border: 1px 
   position: relative; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2);
   display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; user-select: none;
   font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; transition: transform .08s;
-  padding: 0; color: var(--ink);
+  padding: 0; color: var(--ink); overflow: hidden;
 }
 .cell:active { transform: scale(.97); }
 .cell .amt { font-weight: 600; letter-spacing: -.3px; }
 .cell .amt::before { content: "$"; opacity: .55; font-weight: 400; }
-.cell .tag { position: absolute; top: 2px; left: 4px; font-size: .55rem; color: var(--ink-2); opacity: .8; }
-.cell .note-dot { position: absolute; right: 4px; bottom: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); opacity: .6; }
+.cell .tag { position: absolute; top: 2px; left: 4px; font-size: .55rem; line-height: 1; color: var(--ink-2); opacity: .8; }
+.cell .note-dot { position: absolute; right: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); opacity: .6; }
 .cell.genuine { background: var(--green-bg); border-color: var(--green); }
 .cell.forged { background: var(--red-bg); border-color: var(--red); }
-.cell .stamp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.cell .stamp span { font-family: Georgia, serif; font-weight: 700; font-size: .62rem; letter-spacing: 1.5px; padding: 1px 5px; border: 2px solid currentColor; border-radius: 4px; transform: rotate(-14deg); opacity: .85; mix-blend-mode: multiply; }
+/* judged: stamp in the upper part, amount stays readable along the bottom (clues still refer to it) */
+.cell .stamp { position: absolute; inset: 12px 2px 13px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.cell .stamp span { font-family: Georgia, serif; font-weight: 700; font-size: .5rem; letter-spacing: 0; line-height: 1.1; padding: 0 2px; border: 1.5px solid currentColor; border-radius: 3px; transform: rotate(-6deg); opacity: .9; mix-blend-mode: multiply; }
+.cell.genuine .stamp span, .cell.forged .stamp span { white-space: nowrap; }
 @media (prefers-color-scheme: dark) { .cell .stamp span { mix-blend-mode: normal; } }
 .cell.genuine .stamp span { color: var(--green); }
 .cell.forged .stamp span { color: var(--red); }
-.cell.genuine .amt, .cell.forged .amt { opacity: .35; }
+.cell.genuine .amt, .cell.forged .amt { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: .66rem; line-height: 1; opacity: .8; }
 .cell.selected { outline: 3px solid var(--sel); outline-offset: 1px; z-index: 1; }
 .cell.ref { box-shadow: inset 0 0 0 3px var(--sel); }
 .cell.ref-self { box-shadow: inset 0 0 0 3px var(--ink); }
 .cell.mistake { animation: shake .35s; }
-.cell.wrong-once::after { content: "✕"; position: absolute; left: 4px; bottom: 1px; font-size: .6rem; color: var(--red); }
+.cell.wrong-once::after { content: "✕"; position: absolute; right: 12px; top: 0; font-size: .6rem; color: var(--red); }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
 
 /* panel */

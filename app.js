@@ -101,6 +101,7 @@ function renderPanel() {
   if (j) { note.className = 'pc-note'; note.innerHTML = `“${c.clue.text}” <span class="${c.forged ? 'lie' : 'truth'}">${c.forged ? '— a lie' : '— true'}</span>`; }
   else { note.className = 'pc-note sealed'; note.textContent = 'Note sealed until audited.'; }
   $('#pc-judge').classList.toggle('hidden', !!j);
+  $('#pc-hint').classList.toggle('hidden', !(j && hintShown === selected));
   highlightRefs(selected);
 }
 
@@ -118,7 +119,15 @@ function renderNotes() {
   }
 }
 
-function select(i) { selected = i; render(); }
+// first-time hint: explain the blue reference outlines for the first few notes a player opens
+const HINT_MAX = 3;
+let hintShown = -1;
+const hasRefs = (i) => P.cells[i].clue.refs.some((r) => r !== i);
+function maybeHint(i) {
+  if (i >= 0 && G.judged[i] && hasRefs(i) && (store.refHints || 0) < HINT_MAX && hintShown !== i) { hintShown = i; store.refHints = (store.refHints || 0) + 1; save(store); }
+  else if (i !== hintShown) hintShown = -1;
+}
+function select(i) { selected = i; maybeHint(i); render(); }
 
 function judge(forged) {
   if (selected < 0 || G.judged[selected] || G.finishedAt) return;
@@ -133,6 +142,7 @@ function judge(forged) {
     G.judged[selected] = true; G.order.push({ i: selected, ok: false });
   }
   save(store);
+  maybeHint(selected);
   render();
 }
 
@@ -191,6 +201,7 @@ function recordShare() { store.shares = (store.shares || 0) + 1; save(store); }
 $('#btn-genuine').addEventListener('click', () => judge(false));
 $('#btn-forged').addEventListener('click', () => judge(true));
 $('#btn-share').addEventListener('click', share);
+$('#btn-hint-ok').addEventListener('click', () => { store.refHints = HINT_MAX; save(store); hintShown = -1; render(); });
 $('#btn-copy').addEventListener('click', copy);
 $('#btn-help').addEventListener('click', () => $('#dlg-help').showModal());
 $('#btn-stats').addEventListener('click', () => { const s = streak(); $('#st-played').textContent = s.played; $('#st-perfect').textContent = s.perfect; $('#st-streak').textContent = s.current; $('#st-best').textContent = s.best; $('#dlg-stats').showModal(); });

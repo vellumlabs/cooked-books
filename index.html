@@ -50,6 +50,7 @@
         <span class="pc-status" id="pc-status"></span>
       </div>
       <div class="pc-note" id="pc-note"></div>
+      <div class="pc-hint hidden" id="pc-hint" role="note"><span>The entries this note talks about are outlined in <b class="sel">blue</b> on the ledger.</span> <button id="btn-hint-ok" class="link">Got it</button></div>
       <div class="pc-judge" id="pc-judge">
         <button class="judge genuine" id="btn-genuine">Genuine <kbd>G</kbd></button>
         <button class="judge forged" id="btn-forged">Forged <kbd>F</kbd></button>
@@ -86,7 +87,7 @@
   <p>You are auditing a ledger. Some entries are <b class="red">forged</b>, the rest are <b class="green">genuine</b>. The number of forgeries is shown at the top.</p>
   <p>Every entry carries a <b>note</b> written by whoever made it. <b>Genuine entries tell the truth. Forged entries lie</b> — their note is always false.</p>
   <p>A few entries have already been audited: you can read their notes. Use them to work out whether another entry must be genuine or forged, then <b>tap it and judge it</b>. If you are right, its note opens and gives you more to work with. If you are wrong, that counts as a mistake (the correct answer is revealed).</p>
-  <p>There is never any guessing needed: at every moment at least one entry can be proven. Keyboard: arrows to move, <kbd>G</kbd> genuine, <kbd>F</kbd> forged, <kbd>[</kbd> <kbd>]</kbd> previous / next day.</p>
+  <p>There is never any guessing needed: at every moment at least one entry can be proven. Tap an audited entry and the entries its note talks about are outlined in blue. Keyboard: arrows to move, <kbd>G</kbd> genuine, <kbd>F</kbd> forged, <kbd>[</kbd> <kbd>]</kbd> previous / next day.</p>
   <p class="small">Missed a day? Use ‹ › next to the date to play earlier ledgers. Archive ledgers count in your statistics but not in your streak.</p>
   <p class="small">“This row”, “this column”, “above”, “below” refer to the note's own entry. Rows are numbered 1–6, columns A–F. Corners are the four corner entries of the ledger.</p>
   <form method="dialog"><button class="primary">Start auditing</button></form>

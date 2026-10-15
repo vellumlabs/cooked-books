@@ -81,6 +81,12 @@ kbd { font-family: ui-monospace, Menlo, monospace; font-size: .8em; border: 1px 
 .cell.ref { box-shadow: inset 0 0 0 3px var(--sel); }
 .cell.ref-self { box-shadow: inset 0 0 0 3px var(--ink); }
 .cell.mistake { animation: shake .35s; }
+/* after the audit: frame the misjudged entries (dashed ink reads on green and red, and without colour) */
+.board.finished .cell.wrong-once::before, .missed-key { content: ""; border: 1.5px dashed var(--ink); border-radius: 4px; pointer-events: none; }
+.board.finished .cell.wrong-once::before { position: absolute; inset: 0; border-radius: calc(var(--radius) - 1px); }
+.board.finished .cell.wrong-once .tag { top: 3px; left: 5px; }
+.board.finished .cell.wrong-once::after { font-size: .7rem; font-weight: 700; top: 2px; line-height: 1; }
+.missed-key { display: inline-block; width: 14px; height: 14px; border-width: 2px; vertical-align: -2px; margin-right: 2px; }
 .cell.wrong-once::after { content: "✕"; position: absolute; right: 12px; top: 0; font-size: .6rem; color: var(--red); }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
 

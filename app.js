@@ -75,6 +75,7 @@ function render() {
     el.setAttribute('aria-label', `${cellName(n, i)}, $${c.amount}${j ? (c.forged ? ', forged' : ', genuine') : ', not audited'}`);
     let dot = el.querySelector('.note-dot'); if (j && !dot) { dot = document.createElement('span'); dot.className = 'note-dot'; el.appendChild(dot); } if (!j && dot) dot.remove();
   }
+  board.classList.toggle('finished', !!G.finishedAt || Object.keys(G.judged).length === N);
   renderPanel();
   renderNotes();
   if (Object.keys(G.judged).length === N) finish();
@@ -171,6 +172,7 @@ function finish() {
   $('#done-title').textContent = G.mistakes === 0 ? 'Clean audit.' : `Audit complete — ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}.`;
   $('#share-grid').textContent = emojiGrid();
   $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. Streak: ${streak().current}.`;
+  $('#done-missed').classList.toggle('hidden', G.mistakes === 0);
   $('#done-next').classList.toggle('hidden', isArchive);
   $('#done-today').classList.toggle('hidden', !isArchive);
   const prev = dateKey > EPOCH ? addDays(dateKey, -1) : null;

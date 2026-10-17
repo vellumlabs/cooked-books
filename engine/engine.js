@@ -57,7 +57,7 @@ function evalAll(a, idxs, forged) { // all entries in idxs are `forged`
   return und ? undefined : true;
 }
 
-const word = (k) => ['none', 'exactly one', 'exactly two', 'exactly three', 'exactly four', 'exactly five', 'exactly six'][k];
+const word = (k) => ['none', 'exactly one', 'exactly two', 'exactly three', 'exactly four', 'exactly five', 'exactly six', 'exactly seven', 'exactly eight'][k];
 const kind = (f) => (f ? 'forged' : 'genuine');
 const AXIS = { row: 'row', col: 'column' };
 const DIRTXT = { above: 'directly above', below: 'directly below', left: 'to the left of', right: 'to the right of' };

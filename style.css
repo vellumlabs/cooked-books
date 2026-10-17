@@ -52,10 +52,11 @@ kbd { font-family: ui-monospace, Menlo, monospace; font-size: .8em; border: 1px 
 
 /* board */
 .ledger { padding: 16px 0 8px; }
-.board-wrap { display: grid; grid-template-columns: 22px 1fr; grid-template-rows: 18px 1fr; justify-content: center; width: max-content; margin: 0 auto; max-width: 100%; }
-.col-labels { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(var(--n), var(--cell)); gap: 4px; font-size: .75rem; color: var(--ink-2); text-align: center; font-family: ui-monospace, Menlo, monospace; }
-.row-labels { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(var(--n), var(--cell)); gap: 4px; font-size: .75rem; color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; align-items: center; }
-.board { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(var(--n), var(--cell)); grid-auto-rows: var(--cell); gap: 4px; background: var(--paper); }
+/* --c: the cell size, shrunk to fit narrow phones (320 px) and 7x7 pack boards: viewport − main padding 32 − row labels 22 − gaps */
+.board-wrap { --c: min(var(--cell), calc((min(100vw, 640px) - 54px - (var(--n) - 1) * 4px) / var(--n))); display: grid; grid-template-columns: 22px 1fr; grid-template-rows: 18px 1fr; justify-content: center; width: max-content; margin: 0 auto; max-width: 100%; }
+.col-labels { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(var(--n), var(--c)); gap: 4px; font-size: .75rem; color: var(--ink-2); text-align: center; font-family: ui-monospace, Menlo, monospace; }
+.row-labels { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(var(--n), var(--c)); gap: 4px; font-size: .75rem; color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; align-items: center; }
+.board { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(var(--n), var(--c)); grid-auto-rows: var(--c); gap: 4px; background: var(--paper); }
 .cell {
   position: relative; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2);
   display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; user-select: none;
@@ -77,6 +78,12 @@ kbd { font-family: ui-monospace, Menlo, monospace; font-size: .8em; border: 1px 
 .cell.genuine .stamp span { color: var(--green); }
 .cell.forged .stamp span { color: var(--red); }
 .cell.genuine .amt, .cell.forged .amt { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: .66rem; line-height: 1; opacity: .8; }
+/* small cells (7x7 boards, 320 px phones): text scales with the cell width (cqw); at 46 px and up the sizes above apply unchanged */
+.cell { container-type: size; }
+.cell .amt { font-size: min(1em, 25cqw); }
+.cell .tag { font-size: min(.55rem, 19cqw); }
+.cell .stamp span { font-size: min(.5rem, 17cqw); }
+.cell.genuine .amt, .cell.forged .amt { font-size: min(.66rem, 23cqw); }
 .cell.selected { outline: 3px solid var(--sel); outline-offset: 1px; z-index: 1; }
 .cell.ref { box-shadow: inset 0 0 0 3px var(--sel); }
 .cell.ref-self { box-shadow: inset 0 0 0 3px var(--ink); }

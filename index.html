@@ -67,7 +67,7 @@
       <button id="btn-share" class="primary">Share result</button>
       <button id="btn-copy">Copy</button>
     </div>
-    <div class="done-row small"><span id="done-next">Next ledger at midnight (your local time).</span> <a href="./" id="done-today" class="hidden">Today's ledger →</a> <a href="#" id="link-archive">← Previous ledger</a></div>
+    <div class="done-row small"><span id="done-next">Next ledger at midnight (your local time).</span> <a href="./" id="done-today" class="hidden">Today's ledger →</a> <a href="#" id="link-archive">← Previous ledger</a> <a href="#" class="link-packs">Puzzle packs</a></div>
   </section>
 
   <section class="notes">
@@ -102,6 +102,17 @@
     <div><b id="st-streak">0</b><span>streak</span></div>
     <div><b id="st-best">0</b><span>best streak</span></div>
   </div>
+  <p class="small"><a href="#" class="link-packs">Puzzle packs</a> are extra ledgers you load from a file. They have their own progress and don't touch these numbers.</p>
+  <form method="dialog"><button class="primary">Close</button></form>
+</dialog>
+
+<dialog id="dlg-packs">
+  <h2>Puzzle packs</h2>
+  <p class="small">A pack is a set of extra ledgers that never appear as daily puzzles. The daily ledger stays free. Load a pack file (<code>.json</code>) you downloaded; it is kept only in this browser.</p>
+  <ul id="packs-list" class="packs-list"></ul>
+  <p id="packs-none" class="small">No packs loaded yet. The first pack is in the works.</p>
+  <p id="packs-msg" class="small packs-msg" role="status"></p>
+  <label class="file-btn">Load a pack file… <input type="file" id="pack-file" accept=".json,application/json"></label>
   <form method="dialog"><button class="primary">Close</button></form>
 </dialog>
 

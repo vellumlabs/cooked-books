@@ -148,3 +148,12 @@ dialog h2 { margin-top: 0; }
 }
 @media (max-width: 380px) { :root { --cell: 46px; } .cell { font-size: .72rem; } }
 @media (max-width: 360px) { .archive-tag { display: none; } }
+
+/* packs dialog (2026-10-19) */
+.packs-list { list-style: none; padding: 0; margin: 8px 0; }
+.packs-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--ink-2); }
+.packs-list li a { margin-left: auto; }
+.packs-msg:empty { display: none; }
+.file-btn { display: inline-block; margin: 4px 0 12px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: var(--radius); cursor: pointer; }
+.file-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-btn:focus-within { outline: 2px solid var(--sel, #2563eb); outline-offset: 2px; }

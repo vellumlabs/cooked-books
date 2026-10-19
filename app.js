@@ -1,4 +1,5 @@
 // Cooked Books — UI. Loads today's precomputed puzzle (data/YYYY-MM-DD.json) or generates it on-device.
+// Packs (?pack=ID&i=N) are extra ledgers from a pack file the player loads; they live in localStorage, apart from daily stats.
 import { hydrate, daily, cellName, EPOCH } from './engine/engine.js';
 
 const $ = (s) => document.querySelector(s);
@@ -20,11 +21,25 @@ const pd = params.get('d');
 const dateKey = pd && /^\d{4}-\d{2}-\d{2}$/.test(pd) && pd >= EPOCH && pd <= todayKey() ? pd : todayKey();
 const isArchive = dateKey !== todayKey();
 const dayHref = (key) => (key === todayKey() ? location.pathname : `?d=${key}`);
+
+// ---------- packs ----------
+const PACK_LS = 'cooked-books:pack:';
+const loadPack = (id) => { try { const p = JSON.parse(localStorage.getItem(PACK_LS + id)); return p && Array.isArray(p.puzzles) ? p : null; } catch { return null; } };
+const packIds = () => Object.keys(localStorage).filter((k) => k.startsWith(PACK_LS)).map((k) => k.slice(PACK_LS.length)).sort((a, b) => a - b);
+const packHref = (id, i) => `?pack=${id}&i=${i}`;
+const qPack = params.get('pack'), qIdx = Number(params.get('i') || 1);
+const pack = qPack && /^\d+$/.test(qPack) ? loadPack(qPack) : null;
+const inPack = !!pack && Number.isInteger(qIdx) && qIdx >= 1 && qIdx <= pack.puzzles.length;
+const packMissing = !!qPack && !inPack; // link to a pack that isn't loaded on this device: fall back to today, open the packs dialog
+const gameKey = inPack ? `${qPack}:${qIdx}` : dateKey;
+const book = () => (inPack ? (store.packGames ||= {}) : store.games);
+const isAway = isArchive || inPack; // not today's ledger
 let P = null; // hydrated puzzle
 let G = null; // game record for this date
 let selected = -1;
 
 async function loadPuzzle(key) {
+  if (inPack) return hydrate(pack.puzzles[qIdx - 1]);
   try {
     const r = await fetch(`data/${key}.json`, { cache: 'force-cache' });
     if (r.ok) return hydrate(await r.json());
@@ -33,11 +48,11 @@ async function loadPuzzle(key) {
 }
 
 function initGame() {
-  G = store.games[dateKey];
+  G = book()[gameKey];
   if (!G) {
     G = { judged: {}, order: [], mistakes: 0, wrong: {}, startedAt: Date.now(), finishedAt: null };
     for (const i of P.revealed) G.judged[i] = true; // pre-audited (not counted in order)
-    store.games[dateKey] = G; save(store);
+    book()[gameKey] = G; save(store);
   }
 }
 
@@ -45,9 +60,10 @@ function initGame() {
 function render() {
   const n = P.n, N = n * n;
   document.documentElement.style.setProperty('--n', n);
-  $('#puzzle-no').textContent = `#${P.number}`;
-  $('#puzzle-date').textContent = fmtDate(dateKey);
-  $('#archive-tag').classList.toggle('hidden', !isArchive);
+  $('#puzzle-no').textContent = inPack ? `Pack ${qPack}` : `#${P.number}`;
+  $('#puzzle-date').textContent = inPack ? `${qIdx} / ${pack.puzzles.length}` : fmtDate(dateKey);
+  $('#archive-tag').textContent = inPack ? 'pack' : 'archive';
+  $('#archive-tag').classList.toggle('hidden', !isAway);
   $('#k-total').textContent = P.K;
   let found = 0; for (const i in G.judged) if (P.cells[i].forged) found++;
   $('#k-found').textContent = found;
@@ -164,20 +180,27 @@ function emojiGrid() {
 function elapsed() { const ms = (G.finishedAt || Date.now()) - G.startedAt; const s = Math.max(1, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 function shareText() {
   const url = location.origin + location.pathname;
-  return `Cooked Books #${P.number}${isArchive ? ' (archive)' : ''} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`} · ${elapsed()}\n${emojiGrid()}\n${url}`;
+  const title = inPack ? `Cooked Books Pack ${qPack} · ${qIdx}/${pack.puzzles.length}` : `Cooked Books #${P.number}${isArchive ? ' (archive)' : ''}`;
+  return `${title} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`} · ${elapsed()}\n${emojiGrid()}\n${url}`;
 }
 function finish() {
   if (!G.finishedAt) { G.finishedAt = Date.now(); save(store); }
   $('#done').classList.remove('hidden');
   $('#done-title').textContent = G.mistakes === 0 ? 'Clean audit.' : `Audit complete — ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}.`;
   $('#share-grid').textContent = emojiGrid();
-  $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. Streak: ${streak().current}.`;
+  $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. ` + (inPack ? `Pack ${qPack}: ${packSolved(qPack)} of ${pack.puzzles.length} solved.` : `Streak: ${streak().current}.`);
   $('#done-missed').classList.toggle('hidden', G.mistakes === 0);
-  $('#done-next').classList.toggle('hidden', isArchive);
-  $('#done-today').classList.toggle('hidden', !isArchive);
-  const prev = dateKey > EPOCH ? addDays(dateKey, -1) : null;
-  $('#link-archive').classList.toggle('hidden', !prev);
-  if (prev) $('#link-archive').href = dayHref(prev);
+  $('#done-next').classList.toggle('hidden', isAway);
+  $('#done-today').classList.toggle('hidden', !isAway);
+  if (inPack) {
+    const more = qIdx < pack.puzzles.length;
+    $('#link-archive').classList.toggle('hidden', !more);
+    if (more) { $('#link-archive').href = packHref(qPack, qIdx + 1); $('#link-archive').textContent = 'Next pack ledger →'; }
+  } else {
+    const prev = dateKey > EPOCH ? addDays(dateKey, -1) : null;
+    $('#link-archive').classList.toggle('hidden', !prev);
+    if (prev) $('#link-archive').href = dayHref(prev);
+  }
   $('#pc-judge').classList.add('hidden');
   if (!finish.scrolled) { finish.scrolled = true; $('#done').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
 }
@@ -197,6 +220,43 @@ async function share() {
 async function copy() {
   try { await navigator.clipboard.writeText(shareText()); $('#btn-copy').textContent = 'Copied!'; setTimeout(() => ($('#btn-copy').textContent = 'Copy'), 1500); recordShare(); } catch {}
 }
+const packSolved = (id) => Object.entries(store.packGames || {}).filter(([k, g]) => k.startsWith(id + ':') && g.finishedAt).length;
+
+// A pack file: { format: 'cooked-books-pack', id, title, puzzles: [puzzle JSON, same shape as data/*.json] }.
+// Every note is checked against the stored answer so a damaged file can't load an unsolvable ledger.
+function checkPack(p) {
+  if (!p || p.format !== 'cooked-books-pack' || !/^\d+$/.test(String(p.id)) || !Array.isArray(p.puzzles) || !p.puzzles.length) return 'This is not a Cooked Books pack file.';
+  for (const [k, q] of p.puzzles.entries()) {
+    try {
+      const h = hydrate(q); const a = h.cells.map((c) => c.forged);
+      if (!(h.n >= 3 && h.n <= 8 && h.cells.length === h.n * h.n && a.filter(Boolean).length === h.K && h.cells.every((c) => c.clue && c.clue.eval(a) === !c.forged))) throw 0;
+    } catch { return `Ledger ${k + 1} in this pack is damaged.`; }
+  }
+  return '';
+}
+function renderPacks(msg = '') {
+  const ids = packIds();
+  $('#packs-list').innerHTML = ids.map((id) => {
+    const p = loadPack(id); if (!p) return '';
+    const n = p.puzzles.length, solved = packSolved(id);
+    let next = 1; while (next <= n && store.packGames?.[`${id}:${next}`]?.finishedAt) next++;
+    const esc = String(p.title || `Pack ${id}`).replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+    return `<li><b>${esc}</b> <span class="small">${solved} / ${n} solved</span> <a href="${packHref(id, next > n ? 1 : next)}">${solved ? (next > n ? 'Replay' : 'Continue') : 'Start'} →</a></li>`;
+  }).join('');
+  $('#packs-none').classList.toggle('hidden', ids.length > 0);
+  $('#packs-msg').textContent = msg;
+}
+function openPacks(msg) { renderPacks(msg); $('#dlg-packs').showModal(); }
+async function importPack(file) {
+  let p = null;
+  try { p = JSON.parse(await file.text()); } catch {}
+  const err = checkPack(p);
+  if (err) { renderPacks(err); return; }
+  try { localStorage.setItem(PACK_LS + p.id, JSON.stringify({ format: p.format, id: p.id, title: p.title, puzzles: p.puzzles })); }
+  catch { renderPacks('Your browser refused to store the pack (storage full or disabled).'); return; }
+  renderPacks(`Loaded “${p.title || `Pack ${p.id}`}” — ${p.puzzles.length} ledgers.`);
+}
+
 function recordShare() { store.shares = (store.shares || 0) + 1; save(store); }
 
 // ---------- wiring ----------
@@ -205,6 +265,8 @@ $('#btn-forged').addEventListener('click', () => judge(true));
 $('#btn-share').addEventListener('click', share);
 $('#btn-hint-ok').addEventListener('click', () => { store.refHints = HINT_MAX; save(store); hintShown = -1; render(); });
 $('#btn-copy').addEventListener('click', copy);
+for (const el of document.querySelectorAll('.link-packs')) el.addEventListener('click', (e) => { e.preventDefault(); document.querySelector('dialog[open]')?.close(); openPacks(); });
+$('#pack-file').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importPack(f); e.target.value = ''; });
 $('#btn-help').addEventListener('click', () => $('#dlg-help').showModal());
 $('#btn-stats').addEventListener('click', () => { const s = streak(); $('#st-played').textContent = s.played; $('#st-perfect').textContent = s.perfect; $('#st-streak').textContent = s.current; $('#st-best').textContent = s.best; $('#dlg-stats').showModal(); });
 document.addEventListener('keydown', (e) => {
@@ -223,6 +285,12 @@ document.addEventListener('keydown', (e) => {
 
 function renderNav() {
   const prev = $('#nav-prev'), next = $('#nav-next');
+  if (inPack) {
+    prev.hidden = qIdx <= 1; if (!prev.hidden) prev.href = packHref(qPack, qIdx - 1);
+    next.hidden = qIdx >= pack.puzzles.length; if (!next.hidden) next.href = packHref(qPack, qIdx + 1);
+    prev.title = 'Previous pack ledger ( [ )'; next.title = 'Next pack ledger ( ] )';
+    return;
+  }
   prev.hidden = dateKey <= EPOCH; if (!prev.hidden) prev.href = dayHref(addDays(dateKey, -1));
   next.hidden = !isArchive; if (!next.hidden) next.href = dayHref(addDays(dateKey, 1));
 }
@@ -233,4 +301,5 @@ function renderNav() {
   initGame();
   render();
   if (!store.seenHelp) { store.seenHelp = true; save(store); $('#dlg-help').showModal(); }
+  else if (packMissing) openPacks(`${pack ? `Pack ${qPack} has no ledger ${params.get('i')}` : 'That pack isn\'t loaded on this device'}. Load its pack file below, or pick a loaded pack.`);
 })();

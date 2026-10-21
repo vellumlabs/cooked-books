@@ -119,7 +119,7 @@ function candidateClues(n, i, geo, corners) {
 }
 
 // ---------- SAT: is there an assignment consistent with constraints, with cell u forced to value v? ----------
-// constraints: array of { eval(a) }, plus total forged count K over all n*n cells.
+// constraints: array of { eval(a) }, plus total forged count K over all n*n cells (null: ignore the count).
 function satisfiable(a0, constraints, total, N) {
   const a = a0.slice();
   // variables referenced by constraints
@@ -131,7 +131,7 @@ function satisfiable(a0, constraints, total, N) {
   for (const c of constraints) for (const j of c.refs) if (deg.has(j)) deg.set(j, deg.get(j) + 1);
   vars.sort((x, y) => deg.get(y) - deg.get(x));
   const check = () => { for (const c of constraints) if (c.eval(a) === false) return false; return true; };
-  const countOK = () => { let t = 0, u = 0; for (let j = 0; j < N; j++) { if (a[j] === true) t++; else if (a[j] === undefined) u++; } return t <= total && t + u >= total; };
+  const countOK = () => { if (total == null) return true; let t = 0, u = 0; for (let j = 0; j < N; j++) { if (a[j] === true) t++; else if (a[j] === undefined) u++; } return t <= total && t + u >= total; };
   if (!check() || !countOK()) return false;
   const rec = (k) => {
     if (k === vars.length) return true; // remaining unreferenced vars only need the count, already feasible
@@ -184,6 +184,29 @@ export function progressiveSolve(n, cells, K, revealedInit, opts = {}) {
     for (const u of D) known.add(u);
   }
   return { ok: known.size === N, steps, reveals: extraReveals, known: [...known] };
+}
+
+// ---------- hint (packs) ----------
+// The next entry that can be proven from the open notes, and a smallest set of notes that proves it.
+// known: indices whose status is known (pre-audited + judged). Some entry is always provable before the end:
+// the solve steps grow monotonically and more open notes never make an entry less determined.
+// Returns { cell, forged, notes:[indices], count:bool (the proof also needs the forgery count) } or null.
+export function findHint(puzzle, known) {
+  const { n, K, cells } = puzzle; const N = n * n;
+  const ks = new Set([...known].map(Number));
+  const a = new Array(N).fill(undefined); for (const j of ks) a[j] = cells[j].forged;
+  const all = [...ks].sort((x, y) => x - y).map((j) => { const cl = cells[j].clue, truth = !cells[j].forged; return { j, refs: cl.refs, eval: (b) => { const v = cl.eval(b); return v === undefined ? undefined : v === truth; } }; });
+  const proves = (u, cons, total) => { const b = a.slice(); b[u] = !cells[u].forged; return !satisfiable(b, cons, total, N); };
+  let best = null;
+  for (let u = 0; u < N; u++) {
+    if (ks.has(u) || !proves(u, all, K)) continue;
+    let cons = all; // drop every note the proof doesn't need, then check whether it needs the count
+    for (const c of all) { const rest = cons.filter((x) => x !== c); if (proves(u, rest, K)) cons = rest; }
+    const count = !proves(u, cons, null);
+    const cost = cons.length + (count ? 1 : 0);
+    if (!best || cost < best.cost) best = { cell: u, forged: cells[u].forged, notes: cons.map((c) => c.j), count, cost };
+  }
+  return best;
 }
 
 // ---------- generator ----------

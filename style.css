@@ -9,11 +9,12 @@
   --green: #2e6b3a;
   --green-bg: #d9e8d6;
   --sel: #1d4ed8;
+  --hint: #a15c07;
   --cell: 56px;
   --radius: 6px;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --paper: #1f1d19; --paper-2: #2a2721; --line: #3b372e; --ink: #ece6d6; --ink-2: #a9a292; --red: #ff7b6e; --red-bg: #4a221f; --green: #8fd39a; --green-bg: #1f3a26; --sel: #8ab4ff; }
+  :root { --paper: #1f1d19; --paper-2: #2a2721; --line: #3b372e; --ink: #ece6d6; --ink-2: #a9a292; --red: #ff7b6e; --red-bg: #4a221f; --green: #8fd39a; --green-bg: #1f3a26; --sel: #8ab4ff; --hint: #f2b45a; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -157,3 +158,10 @@ dialog h2 { margin-top: 0; }
 .file-btn { display: inline-block; margin: 4px 0 12px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: var(--radius); cursor: pointer; }
 .file-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-btn:focus-within { outline: 2px solid var(--sel, #2563eb); outline-offset: 2px; }
+
+/* pack hints (2026-10-21): the notes that prove the hinted entry get an amber dotted frame, in the ledger and the notes list */
+.cell.why::before { content: ""; position: absolute; inset: 1px; border: 2px dotted var(--hint); border-radius: calc(var(--radius) - 1px); pointer-events: none; }
+.notes li.why { border-left-color: var(--hint); }
+.hint-row { display: flex; gap: 10px; align-items: baseline; margin-top: 8px; font-size: .88rem; color: var(--ink-2); }
+.hint-row button { flex-shrink: 0; padding: 4px 10px; border-color: var(--hint); }
+.hint-row b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }

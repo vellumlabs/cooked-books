@@ -1,6 +1,6 @@
 // Cooked Books — UI. Loads today's precomputed puzzle (data/YYYY-MM-DD.json) or generates it on-device.
 // Packs (?pack=ID&i=N) are extra ledgers from a pack file the player loads; they live in localStorage, apart from daily stats.
-import { hydrate, daily, cellName, EPOCH } from './engine/engine.js';
+import { hydrate, daily, cellName, EPOCH, findHint } from './engine/engine.js';
 
 const $ = (s) => document.querySelector(s);
 const COLS = 'ABCDEFGH';
@@ -59,6 +59,7 @@ function initGame() {
 // ---------- rendering ----------
 function render() {
   const n = P.n, N = n * n;
+  if (hintNow && G.judged[hintNow.cell]) hintNow = null; // the hinted entry is judged: drop its marks
   document.documentElement.style.setProperty('--n', n);
   $('#puzzle-no').textContent = inPack ? `Pack ${qPack}` : `#${P.number}`;
   $('#puzzle-date').textContent = inPack ? `${qIdx} / ${pack.puzzles.length}` : fmtDate(dateKey);
@@ -87,11 +88,13 @@ function render() {
     el.classList.toggle('forged', !!j && c.forged);
     el.classList.toggle('wrong-once', !!G.wrong[i]);
     el.classList.toggle('selected', i === selected);
+    el.classList.toggle('why', !!hintNow && hintNow.notes.includes(i));
     el.querySelector('.stamp').innerHTML = j ? `<span>${c.forged ? 'FORGED' : 'OK'}</span>` : '';
     el.setAttribute('aria-label', `${cellName(n, i)}, $${c.amount}${j ? (c.forged ? ', forged' : ', genuine') : ', not audited'}`);
     let dot = el.querySelector('.note-dot'); if (j && !dot) { dot = document.createElement('span'); dot.className = 'note-dot'; el.appendChild(dot); } if (!j && dot) dot.remove();
   }
   board.classList.toggle('finished', !!G.finishedAt || Object.keys(G.judged).length === N);
+  renderHint();
   renderPanel();
   renderNotes();
   if (Object.keys(G.judged).length === N) finish();
@@ -129,7 +132,7 @@ function renderNotes() {
   for (const i of open) {
     const c = P.cells[i];
     const li = document.createElement('li');
-    li.className = c.forged ? 'forged' : 'genuine'; if (i === selected) li.classList.add('active');
+    li.className = c.forged ? 'forged' : 'genuine'; if (i === selected) li.classList.add('active'); if (hintNow?.notes.includes(i)) li.classList.add('why');
     li.innerHTML = `<span class="who">${cellName(P.n, i)}</span><span class="what">${c.clue.text}</span>`;
     li.addEventListener('click', () => select(i));
     list.appendChild(li);
@@ -145,6 +148,30 @@ function maybeHint(i) {
   else if (i !== hintShown) hintShown = -1;
 }
 function select(i) { selected = i; maybeHint(i); render(); }
+
+// pack hints: point at an entry that can be proven now and the open notes that prove it (not the answer).
+// Each new hinted entry is logged in G.hints and shows in the result; asking again for the same entry is free.
+let hintNow = null;
+const hintsUsed = () => (G.hints || []).length;
+function askHint() {
+  if (!inPack || G.finishedAt || Object.keys(G.judged).length === P.n * P.n) return;
+  const h = findHint(P, Object.keys(G.judged));
+  if (!h) return;
+  const last = (G.hints ||= []).at(-1);
+  if (!last || last.i !== h.cell) { G.hints.push({ i: h.cell, at: Date.now() }); save(store); }
+  hintNow = h; selected = h.cell; render();
+}
+function renderHint() {
+  const row = $('#hint-row'), done = !!G.finishedAt || Object.keys(G.judged).length === P.n * P.n;
+  row.classList.toggle('hidden', !inPack || (done && !hintsUsed()));
+  $('#btn-hint').classList.toggle('hidden', done);
+  const msg = $('#hint-msg'), used = hintsUsed();
+  if (hintNow) {
+    const who = hintNow.notes.map((j) => cellName(P.n, j));
+    const from = who.length ? `the note${who.length > 1 ? 's' : ''} of ${who.length > 1 ? who.slice(0, -1).join(', ') + ' and ' + who.at(-1) : who[0]}` : '';
+    msg.innerHTML = `<b>${cellName(P.n, hintNow.cell)}</b> can be proven now from ${from}${from && hintNow.count ? ' and ' : ''}${hintNow.count ? `the forgery count (${P.K})` : ''}.${who.length ? ` ${who.length > 1 ? 'Those notes are' : 'That note is'} marked in amber.` : ''}`;
+  } else msg.textContent = used ? `Hints used: ${used}.` : 'Stuck? A hint shows an entry you can prove next and the notes that prove it. Hints are counted in your result.';
+}
 
 function judge(forged) {
   if (selected < 0 || G.judged[selected] || G.finishedAt) return;
@@ -174,21 +201,22 @@ function moveSel(dr, dc) {
 // ---------- finish / share ----------
 function emojiGrid() {
   const n = P.n; let out = '';
-  for (let r = 0; r < n; r++) { for (let c = 0; c < n; c++) { const i = r * n + c; out += P.revealed.includes(i) ? '⬜' : G.wrong[i] ? '🟥' : '🟩'; } out += '\n'; }
+  for (let r = 0; r < n; r++) { for (let c = 0; c < n; c++) { const i = r * n + c; out += P.revealed.includes(i) ? '⬜' : G.wrong[i] ? '🟥' : (G.hints || []).some((h) => h.i === i) ? '🟨' : '🟩'; } out += '\n'; }
   return out.trimEnd();
 }
 function elapsed() { const ms = (G.finishedAt || Date.now()) - G.startedAt; const s = Math.max(1, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 function shareText() {
   const url = location.origin + location.pathname;
   const title = inPack ? `Cooked Books Pack ${qPack} · ${qIdx}/${pack.puzzles.length}` : `Cooked Books #${P.number}${isArchive ? ' (archive)' : ''}`;
-  return `${title} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`} · ${elapsed()}\n${emojiGrid()}\n${url}`;
+  const hints = hintsUsed() ? ` · ${hintsUsed()} hint${hintsUsed() === 1 ? '' : 's'}` : '';
+  return `${title} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`}${hints} · ${elapsed()}\n${emojiGrid()}\n${url}`;
 }
 function finish() {
   if (!G.finishedAt) { G.finishedAt = Date.now(); save(store); }
   $('#done').classList.remove('hidden');
   $('#done-title').textContent = G.mistakes === 0 ? 'Clean audit.' : `Audit complete — ${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}.`;
   $('#share-grid').textContent = emojiGrid();
-  $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. ` + (inPack ? `Pack ${qPack}: ${packSolved(qPack)} of ${pack.puzzles.length} solved.` : `Streak: ${streak().current}.`);
+  $('#done-summary').textContent = `${P.K} forgeries found in ${elapsed()}. ` + (inPack ? `Hints: ${hintsUsed()}. Pack ${qPack}: ${packSolved(qPack)} of ${pack.puzzles.length} solved.` : `Streak: ${streak().current}.`);
   $('#done-missed').classList.toggle('hidden', G.mistakes === 0);
   $('#done-next').classList.toggle('hidden', isAway);
   $('#done-today').classList.toggle('hidden', !isAway);
@@ -265,6 +293,7 @@ $('#btn-forged').addEventListener('click', () => judge(true));
 $('#btn-share').addEventListener('click', share);
 $('#btn-hint-ok').addEventListener('click', () => { store.refHints = HINT_MAX; save(store); hintShown = -1; render(); });
 $('#btn-copy').addEventListener('click', copy);
+$('#btn-hint').addEventListener('click', askHint);
 for (const el of document.querySelectorAll('.link-packs')) el.addEventListener('click', (e) => { e.preventDefault(); document.querySelector('dialog[open]')?.close(); openPacks(); });
 $('#pack-file').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importPack(f); e.target.value = ''; });
 $('#btn-help').addEventListener('click', () => $('#dlg-help').showModal());
@@ -278,6 +307,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'arrowright') { e.preventDefault(); moveSel(0, 1); }
   else if (k === 'g') judge(false);
   else if (k === 'f') judge(true);
+  else if (k === 'h') askHint();
   else if (k === 'escape') select(-1);
   else if (k === '[' && !$('#nav-prev').hidden) location.href = $('#nav-prev').href;
   else if (k === ']' && !$('#nav-next').hidden) location.href = $('#nav-next').href;

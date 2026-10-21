@@ -58,6 +58,8 @@
     </div>
   </section>
 
+  <div class="hint-row hidden" id="hint-row" role="status"><button id="btn-hint">Hint <kbd>H</kbd></button> <span id="hint-msg"></span></div>
+
   <section class="done hidden" id="done">
     <h2 id="done-title">Audit complete</h2>
     <pre id="share-grid" class="share-grid"></pre>
@@ -109,6 +111,7 @@
 <dialog id="dlg-packs">
   <h2>Puzzle packs</h2>
   <p class="small">A pack is a set of extra ledgers that never appear as daily puzzles. The daily ledger stays free. Load a pack file (<code>.json</code>) you downloaded; it is kept only in this browser.</p>
+  <p class="small">Pack ledgers have a <b>Hint</b> button (<kbd>H</kbd>): it points at an entry you can prove next and outlines the notes that prove it, without telling you the answer. Hints show in your result (🟨).</p>
   <ul id="packs-list" class="packs-list"></ul>
   <p id="packs-none" class="small">No packs loaded yet. The first pack is in the works.</p>
   <p id="packs-msg" class="small packs-msg" role="status"></p>

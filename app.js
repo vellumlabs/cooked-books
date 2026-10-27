@@ -24,6 +24,12 @@ const dayHref = (key) => (key === todayKey() ? location.pathname : `?d=${key}`);
 
 // ---------- packs ----------
 const PACK_LS = 'cooked-books:pack:';
+// Packs on sale. An empty url keeps the entry hidden; scripts/set-pack-url.mjs fills it in on release day.
+// SHOP-BEGIN
+const SHOP = [
+  { id: '1', title: 'Pack 1 · Back Office', blurb: '50 new 7×7 ledgers with hints · pay what you want, from $1', url: '' },
+];
+// SHOP-END
 const loadPack = (id) => { try { const p = JSON.parse(localStorage.getItem(PACK_LS + id)); return p && Array.isArray(p.puzzles) ? p : null; } catch { return null; } };
 const packIds = () => Object.keys(localStorage).filter((k) => k.startsWith(PACK_LS)).map((k) => k.slice(PACK_LS.length)).sort((a, b) => a - b);
 const packHref = (id, i) => `?pack=${id}&i=${i}`;
@@ -262,16 +268,21 @@ function checkPack(p) {
   }
   return '';
 }
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 function renderPacks(msg = '') {
   const ids = packIds();
   $('#packs-list').innerHTML = ids.map((id) => {
     const p = loadPack(id); if (!p) return '';
     const n = p.puzzles.length, solved = packSolved(id);
     let next = 1; while (next <= n && store.packGames?.[`${id}:${next}`]?.finishedAt) next++;
-    const esc = String(p.title || `Pack ${id}`).replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+    const esc = escHtml(p.title || `Pack ${id}`);
     return `<li><b>${esc}</b> <span class="small">${solved} / ${n} solved</span> <a href="${packHref(id, next > n ? 1 : next)}">${solved ? (next > n ? 'Replay' : 'Continue') : 'Start'} →</a></li>`;
   }).join('');
   $('#packs-none').classList.toggle('hidden', ids.length > 0);
+  const sale = SHOP.filter((x) => /^https:\/\//.test(x.url) && !ids.includes(x.id));
+  $('#packs-shop').innerHTML = sale.map((x) => `<li><b>${escHtml(x.title)}</b> <span class="small">${escHtml(x.blurb)}</span> <a href="${escHtml(x.url)}" target="_blank" rel="noopener">Get it →</a></li>`).join('');
+  $('#packs-shop').classList.toggle('hidden', !sale.length);
+  $('#packs-soon').classList.toggle('hidden', SHOP.some((x) => /^https:\/\//.test(x.url)));
   $('#packs-msg').textContent = msg;
 }
 function openPacks(msg) { renderPacks(msg); $('#dlg-packs').showModal(); }

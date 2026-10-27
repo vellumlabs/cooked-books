@@ -113,7 +113,8 @@
   <p class="small">A pack is a set of extra ledgers that never appear as daily puzzles. The daily ledger stays free. Load a pack file (<code>.json</code>) you downloaded; it is kept only in this browser.</p>
   <p class="small">Pack ledgers have a <b>Hint</b> button (<kbd>H</kbd>): it points at an entry you can prove next and outlines the notes that prove it, without telling you the answer. Hints show in your result (🟨).</p>
   <ul id="packs-list" class="packs-list"></ul>
-  <p id="packs-none" class="small">No packs loaded yet. The first pack is in the works.</p>
+  <p id="packs-none" class="small">No packs loaded yet.<span id="packs-soon"> The first pack is in the works.</span></p>
+  <ul id="packs-shop" class="packs-list hidden" aria-label="Packs you can get"></ul>
   <p id="packs-msg" class="small packs-msg" role="status"></p>
   <label class="file-btn">Load a pack file… <input type="file" id="pack-file" accept=".json,application/json"></label>
   <form method="dialog"><button class="primary">Close</button></form>

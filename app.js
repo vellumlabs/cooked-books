@@ -71,7 +71,10 @@ function render() {
   $('#puzzle-date').textContent = inPack ? `${qIdx} / ${pack.puzzles.length}` : fmtDate(dateKey);
   $('#archive-tag').textContent = inPack ? 'pack' : 'archive';
   $('#archive-tag').classList.toggle('hidden', !isAway);
-  $('#k-total').textContent = P.K;
+  // Pack rule "Unknown count" (puzzle.hideCount): the forgery count stays hidden until every entry is judged
+  const kHidden = !!P.hideCount && Object.keys(G.judged).length < N;
+  $('#k-total').textContent = kHidden ? '?' : P.K;
+  $('#k-total').title = kHidden ? 'The number of forgeries is not given in this ledger' : '';
   let found = 0; for (const i in G.judged) if (P.cells[i].forged) found++;
   $('#k-found').textContent = found;
   $('#mistakes').textContent = G.mistakes;
@@ -276,7 +279,8 @@ function renderPacks(msg = '') {
     const n = p.puzzles.length, solved = packSolved(id);
     let next = 1; while (next <= n && store.packGames?.[`${id}:${next}`]?.finishedAt) next++;
     const esc = escHtml(p.title || `Pack ${id}`);
-    return `<li><b>${esc}</b> <span class="small">${solved} / ${n} solved</span> <a href="${packHref(id, next > n ? 1 : next)}">${solved ? (next > n ? 'Replay' : 'Continue') : 'Start'} →</a></li>`;
+    const rule = p.puzzles.some((q) => q && q.hideCount) ? ' · forgery count not given' : '';
+    return `<li><b>${esc}</b> <span class="small">${solved} / ${n} solved${rule}</span> <a href="${packHref(id, next > n ? 1 : next)}">${solved ? (next > n ? 'Replay' : 'Continue') : 'Start'} →</a></li>`;
   }).join('');
   $('#packs-none').classList.toggle('hidden', ids.length > 0);
   const sale = SHOP.filter((x) => /^https:\/\//.test(x.url) && !ids.includes(x.id));

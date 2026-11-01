@@ -154,18 +154,20 @@ export function progressiveSolve(n, cells, K, revealedInit, opts = {}) {
   const known = new Set(revealedInit);
   const extraReveals = [];
   const maxReveals = opts.maxReveals ?? 0;
+  const total = opts.hideCount ? null : K; // Pack #2 candidate rule: the forgery count is not given
   const steps = [];
   const assignOf = () => { const a = new Array(N).fill(undefined); for (const j of known) a[j] = cells[j].forged; return a; };
   const constraintsOf = () => [...known].map((j) => { const cl = cells[j].clue; const truth = !cells[j].forged; return { refs: cl.refs, eval: (a) => { const v = cl.eval(a); return v === undefined ? undefined : v === truth; } }; });
   const determinable = () => {
     const a = assignOf(); const cons = constraintsOf(); const D = [];
-    for (let u = 0; u < N; u++) if (!known.has(u)) { const b = a.slice(); b[u] = !cells[u].forged; if (!satisfiable(b, cons, K, N)) D.push(u); }
+    for (let u = 0; u < N; u++) if (!known.has(u)) { const b = a.slice(); b[u] = !cells[u].forged; if (!satisfiable(b, cons, total, N)) D.push(u); }
     return { D, a, cons };
   };
   // level-1: contradiction visible from a single open note or the K count without any further case analysis
   const isLevel1 = (u, a, cons) => {
     const b = a.slice(); b[u] = !cells[u].forged;
     for (const c of cons) if (c.eval(b) === false) return true;
+    if (total == null) return false;
     let t = 0, un = 0; for (let j = 0; j < N; j++) { if (b[j] === true) t++; else if (b[j] === undefined) un++; }
     return t > K || t + un < K;
   };
@@ -192,7 +194,7 @@ export function progressiveSolve(n, cells, K, revealedInit, opts = {}) {
 // the solve steps grow monotonically and more open notes never make an entry less determined.
 // Returns { cell, forged, notes:[indices], count:bool (the proof also needs the forgery count) } or null.
 export function findHint(puzzle, known) {
-  const { n, K, cells } = puzzle; const N = n * n;
+  const { n, cells } = puzzle; const N = n * n; const K = puzzle.hideCount ? null : puzzle.K;
   const ks = new Set([...known].map(Number));
   const a = new Array(N).fill(undefined); for (const j of ks) a[j] = cells[j].forged;
   const all = [...ks].sort((x, y) => x - y).map((j) => { const cl = cells[j].clue, truth = !cells[j].forged; return { j, refs: cl.refs, eval: (b) => { const v = cl.eval(b); return v === undefined ? undefined : v === truth; } }; });
@@ -202,7 +204,7 @@ export function findHint(puzzle, known) {
     if (ks.has(u) || !proves(u, all, K)) continue;
     let cons = all; // drop every note the proof doesn't need, then check whether it needs the count
     for (const c of all) { const rest = cons.filter((x) => x !== c); if (proves(u, rest, K)) cons = rest; }
-    const count = !proves(u, cons, null);
+    const count = K != null && !proves(u, cons, null);
     const cost = cons.length + (count ? 1 : 0);
     if (!best || cost < best.cost) best = { cell: u, forged: cells[u].forged, notes: cons.map((c) => c.j), count, cost };
   }
@@ -216,6 +218,7 @@ export function generate(seedStr, n, target = {}) {
   const N = n * n;
   const corners = [0, n - 1, N - n, N - 1];
   const maxReveals = target.maxReveals ?? (n <= 4 ? 1 : n === 5 ? 2 : 3);
+  const hideCount = !!target.hideCount; // Pack #2 candidate: solvable without knowing K (daily boards never set this)
   // difficulty score = 3 × hard steps (no single-note move available) + narrow steps (at most one such move)
   const scoreMin = target.scoreMin ?? 0, scoreMax = target.scoreMax ?? 99;
   const dist = (x) => (x < scoreMin ? scoreMin - x : x > scoreMax ? x - scoreMax : 0);
@@ -244,7 +247,7 @@ export function generate(seedStr, n, target = {}) {
     // starting reveal: one genuine cell, prefer informative (many refs)
     const genuine = [...Array(N).keys()].filter((j) => !forged[j]);
     const start = pick(rng, genuine);
-    let res = progressiveSolve(n, cells, K, [start], { maxReveals });
+    let res = progressiveSolve(n, cells, K, [start], { maxReveals, hideCount });
     // repair: when the deduction chain stalls, swap the note of one already-open entry for another true note
     // that makes some hidden entry deducible, then re-verify from the start. Raises the solvable rate on 6x6
     // from ~1% of random boards, so the difficulty target has a real pool to choose from.
@@ -254,19 +257,19 @@ export function generate(seedStr, n, target = {}) {
         for (const alt of shuffle(rng, cells[j].cands)) {
           if (alt === cells[j].clue || ++tries > 80) continue;
           const old = cells[j].clue; cells[j].clue = alt;
-          if (progressiveSolve(n, cells, K, known, { maxReveals: 0 }).steps.length) { done = true; break; }
+          if (progressiveSolve(n, cells, K, known, { maxReveals: 0, hideCount }).steps.length) { done = true; break; }
           cells[j].clue = old;
         }
         if (done || tries > 80) break;
       }
       if (!done) break;
-      res = progressiveSolve(n, cells, K, [start], { maxReveals });
+      res = progressiveSolve(n, cells, K, [start], { maxReveals, hideCount });
     }
     if (!res.ok) continue;
     const hard = res.steps.filter((s) => s.hard).length;
     const score = 3 * hard + res.steps.filter((s) => s.easy <= 1).length;
     if (target.onCandidate) target.onCandidate(res);
-    const puzzle = { n, K, cells: cells.map((c) => ({ amount: c.amount, forged: c.forged, clue: { type: c.clue.type, params: c.clue.params, refs: c.clue.refs, text: c.clue.text } })), revealed: [start, ...res.reveals], steps: res.steps.map((s) => s.determined), hardSteps: hard, score, attempt };
+    const puzzle = { n, K, cells: cells.map((c) => ({ amount: c.amount, forged: c.forged, clue: { type: c.clue.type, params: c.clue.params, refs: c.clue.refs, text: c.clue.text } })), revealed: [start, ...res.reveals], steps: res.steps.map((s) => s.determined), hardSteps: hard, score, attempt, ...(hideCount ? { hideCount: true } : {}) };
     if (!dist(score)) return puzzle;
     if (!fallback || dist(score) < dist(fallback.score)) fallback = puzzle;
   }

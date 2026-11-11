@@ -28,6 +28,7 @@ const PACK_LS = 'cooked-books:pack:';
 // SHOP-BEGIN
 const SHOP = [
   { id: '1', title: 'Pack 1 · Back Office', blurb: '50 new 7×7 ledgers with hints · pay what you want, from $1', url: '' },
+  { id: '2', title: 'Pack 2 · Off the Books', blurb: '50 new 7×7 ledgers, forgery count not given, with hints · pay what you want, from $1', url: '' },
 ];
 // SHOP-END
 const loadPack = (id) => { try { const p = JSON.parse(localStorage.getItem(PACK_LS + id)); return p && Array.isArray(p.puzzles) ? p : null; } catch { return null; } };

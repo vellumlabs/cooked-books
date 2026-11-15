@@ -215,8 +215,17 @@ function emojiGrid() {
   return out.trimEnd();
 }
 function elapsed() { const ms = (G.finishedAt || Date.now()) - G.startedAt; const s = Math.max(1, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+// The link in the share text. Inside an embed (the itch.io iframe) location is a CDN address nobody can open,
+// so off the canonical host we share the canonical page instead (each build sets <link rel=canonical>).
+function shareUrl() {
+  const here = location.origin + location.pathname;
+  try {
+    const c = new URL(document.querySelector('link[rel=canonical]').href);
+    return c.hostname === location.hostname || /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? here : c.href;
+  } catch { return here; }
+}
 function shareText() {
-  const url = location.origin + location.pathname;
+  const url = shareUrl();
   const title = inPack ? `Cooked Books Pack ${qPack} · ${qIdx}/${pack.puzzles.length}` : `Cooked Books #${P.number}${isArchive ? ' (archive)' : ''}`;
   const hints = hintsUsed() ? ` · ${hintsUsed()} hint${hintsUsed() === 1 ? '' : 's'}` : '';
   return `${title} — ${G.mistakes === 0 ? 'clean audit ✓' : `${G.mistakes} mistake${G.mistakes === 1 ? '' : 's'}`}${hints} · ${elapsed()}\n${emojiGrid()}\n${url}`;
@@ -255,8 +264,23 @@ async function share() {
   if (navigator.share) { try { await navigator.share({ text }); recordShare(); return; } catch {} }
   await copy();
 }
+// Copy: the async clipboard first; embeds without clipboard-write permission fall back to execCommand,
+// and if that fails too the full text is shown selected so the player can copy it by hand.
 async function copy() {
-  try { await navigator.clipboard.writeText(shareText()); $('#btn-copy').textContent = 'Copied!'; setTimeout(() => ($('#btn-copy').textContent = 'Copy'), 1500); recordShare(); } catch {}
+  const text = shareText(); let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+  if (!ok) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+    document.body.append(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch {}
+    ta.remove();
+  }
+  const btn = $('#btn-copy');
+  if (ok) { btn.textContent = 'Copied!'; setTimeout(() => (btn.textContent = 'Copy'), 1500); recordShare(); return; }
+  const grid = $('#share-grid'); grid.textContent = text;
+  const r = document.createRange(); r.selectNodeContents(grid); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  btn.textContent = /Mac|iP/.test(navigator.platform) ? 'Press ⌘C' : 'Press Ctrl+C';
 }
 const packSolved = (id) => Object.entries(store.packGames || {}).filter(([k, g]) => k.startsWith(id + ':') && g.finishedAt).length;
 

@@ -165,3 +165,4 @@ dialog h2 { margin-top: 0; }
 .hint-row { display: flex; gap: 10px; align-items: baseline; margin-top: 8px; font-size: .88rem; color: var(--ink-2); }
 .hint-row button { flex-shrink: 0; padding: 4px 10px; border-color: var(--hint); }
 .hint-row b { color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
+.noscript { padding: 12px; border: 1px solid var(--line); border-radius: 6px; }

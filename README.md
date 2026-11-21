@@ -10,6 +10,7 @@ Some entries in today's ledger are forged. Every entry carries a note. **Genuine
 - Ledgers grow through the week: 4×4 on Monday up to 6×6 at the weekend
 - Share your audit as an emoji grid (no spoilers)
 - Works on phones and with a keyboard (arrows to move, `G` genuine, `F` forged)
+- Installable: add it to your home screen; once opened it also works offline (the ledgers a week either side of today are kept on your device)
 - No account, no tracking, no ads. Progress and streaks stay in your browser
 - Past ledgers: add `?d=YYYY-MM-DD` to the URL
 

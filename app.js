@@ -372,4 +372,15 @@ function renderNav() {
   render();
   if (!store.seenHelp) { store.seenHelp = true; save(store); $('#dlg-help').showModal(); }
   else if (packMissing) openPacks(`${pack ? `Pack ${qPack} has no ledger ${params.get('i')}` : 'That pack isn\'t loaded on this device'}. Load its pack file below, or pick a loaded pack.`);
+  // Offline: register the service worker (not when embedded, e.g. on itch.io) and keep the ledgers a week either side of today in its cache (one request a day once filled)
+  if ('serviceWorker' in navigator && window.top === window) {
+    try {
+      await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      if (navigator.serviceWorker.controller) for (let n = -7; n <= 7; n++) {
+        const u = `data/${addDays(todayKey(), n)}.json`;
+        if (addDays(todayKey(), n) >= EPOCH && !(await caches.match(u))) fetch(u).catch(() => {});
+      }
+    } catch {}
+  }
 })();
